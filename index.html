@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <title>Face detection</title>
+    <style>
+        body {
+            background-color: orange;
+            color: #FFF;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        * { font-size: 20px; }
+
+        #canvas { display: none; }
+
+        #container {
+            width: 100%;
+            text-align: center;
+        }
+
+        #video { display: none; }
+
+        #botao  {
+            margin-top: 100px;
+            text-align: center;
+            border: none;
+            outline: none;
+            padding: 40px;
+            color: white;
+            background: orange;
+            border-radius: 15px;
+            border: 3px solid #FFF;
+            cursor: pointer;
+        }
+
+        #botao:hover {
+            color: orange;
+            background-color: #FFF;
+        }
+
+        #resultado {
+            display: none;
+            text-align: center;
+        }
+
+        #aguarde {
+            display: none;
+            margin-top: 100px;
+            text-align: center
+        }
+    </style>
+</head>
+<body>
+    <video id="video"></video>
+    <div id="container">
+        <button id="botao">Como eu estou hoje?</button>
+        <div id="aguarde">
+            <video id="spin" src="aguarde.mp4" width="200"></video>
+            <p>Aguarde...</p>
+            </div>
+    </div>
+
+    <div id="resultado">
+        <div>
+            <p class="genero-e-idade"></p>
+            <p class="emocao"></p>
+        </div>
+    </div>
+
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+    var retorno;
+
+    // Detecta webcam
+    var video = document.getElementById('video');
+    if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+            video.src = window.URL.createObjectURL(stream);
+            video.play();
+        });
+    }
+
+    // Evento de foto
+    document.getElementById("botao").addEventListener("click", function() {
+        $("#botao").hide();
+        $("#spin").get(0).play();
+        $("#aguarde").show();
+        $("#resultado").hide();
+
+        var canvas = document.getElementById('canvas');
+        var context = canvas.getContext('2d');
+        var video = document.getElementById('video');
+        context.drawImage(video, 0, 0, 640, 480);
+
+        document.getElementById("canvas").toBlob(blob => enviarFoto(blob));
+    });
+
+    function enviarFoto(imagem) {
+
+        var params = {
+            // Request parameters
+            "returnFaceId": "true",
+            "returnFaceLandmarks": "false",
+            "returnFaceAttributes": "age,gender,emotion"
+        };
+
+        $.ajax({
+            url: "https://westus.api.cognitive.microsoft.com/face/v1.0/detect?" + $.param(params),
+            beforeSend: function(xhrObj){
+                xhrObj.setRequestHeader("Content-Type","application/octet-stream");
+                xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key","5ec8f00d86e148168a2b933e108084a1");
+            },
+            type: "POST",
+            data: imagem,
+            processData: false
+        })
+        .done(function(data) {
+
+            $("#aguarde").hide();
+            $("#botao").show();
+            $("#resultado").show();
+            
+            if(data.length == 0) {
+                alert('Não consigo te enxergar direito, tente se aproximar um pouco mais da tela...');
+            }
+            else if(data.length > 1) {
+                alert('Há mais de uma pessoa, ou isso atrás do seu ombro não é seu amigo?');
+            }
+            else {
+
+                var rosto = data[0].faceAttributes;
+                var genero = rosto.gender == 'male' ? 'homem' : 'mulher';
+                var idade = rosto.age;
+                $('.genero-e-idade').text(`Você é um${genero == 'homem' ? '' : 'a'} ${genero}, e aparenta ter ${idade} anos.`);
+                
+                var emocao;
+                for(var e in rosto.emotion)
+                {
+                    if(emocao == null || rosto.emotion[e] > rosto.emotion[emocao]) {
+                        emocao = e;
+                    }
+                }
+
+                $('.emocao').text(`Você parece estar ${descricaoEmocao(emocao)}.`);
+            }
+
+        })
+        .fail(function() {
+            alert("error");
+        });
+    }
+
+    function descricaoEmocao(emocao) {
+        if(emocao == "anger") return "com ódio no coração";
+        if(emocao == "contempt") return "com cara de poucos amigos";
+        if(emocao == "disgust") return "com nojinho";
+        if(emocao == "fear") return "com o cú na mão";
+        if(emocao == "happiness") return "com cara de bobo";
+        if(emocao == "sadness") return "pensando na morte da bezerra";
+        if(emocao == "surprise") return "mais assustado que a mulher do cunha";
+        return "com cara de nada";
+    }
+    </script>
+</body>
+</html>
